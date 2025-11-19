@@ -13,42 +13,89 @@
  *                                                                                     *
  ***************************************************************************************/
 
+// Function to validate and format proxy
+function validateAndFormatProxy($proxyString) {
+    if (empty($proxyString)) {
+        return null;
+    }
+    
+    // Check if proxy has authentication (format: ip:port:user:pass)
+    if (substr_count($proxyString, ':') >= 3) {
+        list($ip, $port, $user, $pass) = explode(':', $proxyString, 4);
+        return [
+            'url' => $ip . ':' . $port,
+            'auth' => $user . ':' . $pass
+        ];
+    }
+    // Otherwise assume it's just ip:port
+    else {
+        return [
+            'url' => $proxyString,
+            'auth' => null
+        ];
+    }
+}
 
-$maxRetries = 3;
-$retryCount = 0;
+// Function to apply proxy settings to cURL handle
+function applyProxyToCurl($ch, $proxyData) {
+    if ($proxyData) {
+        curl_setopt($ch, CURLOPT_PROXY, $proxyData['url']);
+        if ($proxyData['auth']) {
+            curl_setopt($ch, CURLOPT_PROXYUSERPWD, $proxyData['auth']);
+        }
+    }
+}
+
+ $maxRetries = 3;
+ $retryCount = 0;
 require_once 'ua.php';
-$agent = new userAgent();
-$ua = $agent->generate('windows');
-start:
+ $agent = new userAgent();
+ $ua = $agent->generate('windows');
 
-// $proxy = validateAndFormatProxy();
+// Check if proxy is provided as command line argument
+ $proxy = isset($argv[3]) ? $argv[3] : null;
+ $proxyData = validateAndFormatProxy($proxy);
+
+// Test proxy if provided
+if ($proxyData) {
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, "http://api.ipify.org?format=json");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    applyProxyToCurl($ch, $proxyData);
+
+    $proxyresponse = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curl_error = curl_error($ch);
+    curl_close($ch);
+
+    if ($http_code === 200 && !empty($proxyresponse)) {
+        $result = [
+            'Response' => 'Proxy Working',
+            'ip' => json_decode($proxyresponse, true)['ip'],
+        ];
+        // You can uncomment this to see proxy validation results
+        // echo json_encode($result) . "\n";
+    } else {
+        $err = "Proxy Dead";
+        $result = json_encode([
+            'Response' => $err,
+            'ErrorDetails' => $curl_error,
+            'VerboseLog' => $proxyresponse,
+        ]);
+        echo $result;
+        exit;
+    }
+}
+
+// Rest of your script continues here...
+
+// For each cURL request in your script, apply the proxy like this:
 // $ch = curl_init();
-// curl_setopt($ch, CURLOPT_URL, "http://api.ipify.org?format=json");
-// curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-// curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-// curl_setopt($ch, CURLOPT_PROXY, $proxy);
-// curl_setopt($ch, CURLOPT_PROXYUSERPWD, $proxy);
-
-// $proxyresponse = curl_exec($ch);
-// $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-// $curl_error = curl_error($ch);
-// curl_close($ch);
-
-// if ($http_code === 200 && !empty($proxyresponse)) {
-//     $result = [
-//         'Response' => 'Proxy Working',
-//         'ip' => json_decode($proxyresponse, true)['ip'],
-//     ];
-// } else {
-//     $err = "Proxy Dead";
-//     $result = json_encode([
-//         'Response' => $err,
-//         'ErrorDetails' => $curl_error,
-//         'VerboseLog' => $proxyresponse,
-//     ]);
-//     echo $result;
-//     exit;
-// }
+// curl_setopt($ch, CURLOPT_URL, $url);
+// // other cURL options...
+// applyProxyToCurl($ch, $proxyData); // Apply proxy settings
+// $response = curl_exec($ch);
 
 function generateUSAddress() {
     $statesWithZipRanges = [

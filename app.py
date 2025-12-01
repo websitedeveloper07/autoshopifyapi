@@ -1,67 +1,96 @@
-import os
-import subprocess
-import json
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify
+import asyncio
+import re
+from autosh import process_card, fetchProducts
+from utils import Utils
 
-# Initialize the Flask application
 app = Flask(__name__)
 
-@app.route('/index.php', methods=['GET'])
-def run_checkout():
-    """
-    API endpoint to run the Shopify checkout PHP script.
-    Expects 'site', 'cc' and optional 'proxy' as query parameters.
-    """
-    # 1. Get query parameters from the request URL
-    site = request.args.get('site')
-    cc = request.args.get('cc')
-    proxy = request.args.get('proxy')  # optional
-
-    # 2. Validate required parameters
-    if not site or not cc:
-        return jsonify({
-            "Response": "Error: 'site' and 'cc' query parameters are required."
-        }), 400
-
-    # 3. Construct the command to execute the PHP script
-    # Pass site, cc, and optionally proxy as arguments
-    command = ['php', 'index.php', site, cc]
-    if proxy:
-        command.append(proxy)
-
+@app.route('/autosh/site=<site>')
+def process_card_endpoint(site):
     try:
-        # 4. Run the command as a subprocess
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=60  # 60-second timeout
-        )
-
-        # 5. Try to parse the PHP script output as JSON
-        try:
-            json_output = json.loads(result.stdout)
-            return jsonify(json_output)
-        except json.JSONDecodeError:
-            return Response(result.stdout, status=500, mimetype='text/plain')
-
-    except subprocess.CalledProcessError as e:
-        return jsonify({
-            "Response": "PHP script execution failed.",
-            "error": e.stderr
-        }), 500
-    except subprocess.TimeoutExpired:
-        return jsonify({
-            "Response": "Error: Script execution timed out after 60 seconds."
-        }), 504  # Gateway Timeout
+        # Get card information from query parameters
+        cc = request.args.get('cc')
+        
+        if not cc:
+            return jsonify({"error": "Card information is required"}), 400
+        
+        # Extract card details from pipe format
+        card_parts = cc.split('|')
+        if len(card_parts) != 4:
+            return jsonify({"error": "Invalid card format. Expected format: card_number|month|year|cvv"}), 400
+        
+        card_number, month, year, cvv = card_parts
+        
+        # Validate card information
+        if not Utils.luhn_check(card_number):
+            return jsonify({"error": "Invalid card number"}), 400
+        
+        if not month.isdigit() or int(month) < 1 or int(month) > 12:
+            return jsonify({"error": "Invalid month"}), 400
+            
+        if not year.isdigit() or len(year) not in [2, 4]:
+            return jsonify({"error": "Invalid year"}), 400
+            
+        if not cvv.isdigit() or len(cvv) not in [3, 4]:
+            return jsonify({"error": "Invalid CVV"}), 400
+        
+        # Process the card
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Get proxies
+        proxies = Utils.proxies
+        if not proxies:
+            return jsonify({"error": "No proxies available"}), 500
+        
+        # Check if site has variant_id
+        site_parts = site.split('?')
+        site_url = site_parts[0]
+        variant_id = None
+        
+        if len(site_parts) > 1:
+            variant_match = re.search(r'variant_id=([^&]+)', site_parts[1])
+            if variant_match:
+                variant_id = variant_match.group(1)
+        
+        # Create site object
+        class Site:
+            def __init__(self, url, variant_id):
+                self.url = url
+                self.variant_id = variant_id
+        
+        site_obj = Site(site_url, variant_id)
+        
+        # Process the card
+        result = loop.run_until_complete(process_card(card_number, month, year, cvv, site_obj, proxies))
+        
+        # Return the result
+        if isinstance(result, tuple) and len(result) >= 2:
+            if result[0]:
+                return jsonify({
+                    "status": "success",
+                    "message": result[1],
+                    "details": result[2:] if len(result) > 2 else None
+                })
+            else:
+                return jsonify({
+                    "status": "error",
+                    "message": result[1],
+                    "details": result[2:] if len(result) > 2 else None
+                }), 400
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Unknown error occurred"
+            }), 500
+            
     except Exception as e:
-        return jsonify({
-            "Response": "An unexpected server error occurred.",
-            "error": str(e)
-        }), 500
+        return jsonify({"error": str(e)}), 500
 
-# This allows running the server locally for testing
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    # Load resources
+    Utils.load_resources()
+    
+    # Run the app
+    app.run(debug=True, host='0.0.0.0', port=5000)

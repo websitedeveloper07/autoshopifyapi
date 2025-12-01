@@ -28,7 +28,6 @@ def process_card_endpoint(site):
     try:
         # Get card information from query parameters
         cc = request.args.get('cc')
-        proxy = request.args.get('proxy')
         
         if not cc:
             return jsonify({"error": "Card information is required"}), 400
@@ -57,8 +56,10 @@ def process_card_endpoint(site):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        # Use provided proxy or default to empty list
-        proxies = [Proxy(proxy)] if proxy else []
+        # Hardcoded proxy
+        proxy_string = "http://user-Mdw5TwO58ewqByFP-type-residential-country-US-city-New_York:9GFLalL6ZKPZraFe@geo.g-w.info:10080"
+        proxy = Proxy(proxy_string)
+        proxies = [proxy]
         
         # Check if site has variant_id
         site_parts = site.split('?')

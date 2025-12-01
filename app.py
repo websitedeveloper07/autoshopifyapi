@@ -6,11 +6,29 @@ from utils import Utils
 
 app = Flask(__name__)
 
+# Proxy class to match the format used in autosh.py
+class Proxy:
+    def __init__(self, proxy_string):
+        # Expected format: user:pass@ip:port
+        if '@' in proxy_string:
+            auth, server = proxy_string.split('@', 1)
+            self.proxy = proxy_string
+        else:
+            # If no auth, just use the server part
+            self.proxy = proxy_string
+
+# Site class to match the format used in autosh.py
+class Site:
+    def __init__(self, url, variant_id=None):
+        self.url = url
+        self.variant_id = variant_id
+
 @app.route('/autosh/site=<site>')
 def process_card_endpoint(site):
     try:
         # Get card information from query parameters
         cc = request.args.get('cc')
+        proxy = request.args.get('proxy')
         
         if not cc:
             return jsonify({"error": "Card information is required"}), 400
@@ -39,10 +57,8 @@ def process_card_endpoint(site):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        # Get proxies
-        proxies = Utils.proxies
-        if not proxies:
-            return jsonify({"error": "No proxies available"}), 500
+        # Use provided proxy or default to empty list
+        proxies = [Proxy(proxy)] if proxy else []
         
         # Check if site has variant_id
         site_parts = site.split('?')
@@ -55,11 +71,6 @@ def process_card_endpoint(site):
                 variant_id = variant_match.group(1)
         
         # Create site object
-        class Site:
-            def __init__(self, url, variant_id):
-                self.url = url
-                self.variant_id = variant_id
-        
         site_obj = Site(site_url, variant_id)
         
         # Process the card

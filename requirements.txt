@@ -1,7 +1,2 @@
-Flask
-gunicorn
-
-aiohttp
-requests
-
-pyTelegramBotAPI   # for telebot
+flask
+gunicorn 

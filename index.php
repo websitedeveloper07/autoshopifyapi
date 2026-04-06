@@ -409,19 +409,24 @@ if ($found) {
     exit;
 }
 
-$x_checkout_one_session_token = find_between($response, '<meta name="serialized-session-token" content="&quot;', '&quot;"');
+// Extract Session Token (SST) - Updated to match new Shopify format
+ $x_checkout_one_session_token = find_between($response, 'name="serialized-sessionToken" content="&quot;', '&quot;');
+if (empty($x_checkout_one_session_token)) {
+    $x_checkout_one_session_token = find_between($response, 'serializedSessionToken&quot;:&quot;', '&quot;');
+}
 if (empty($x_checkout_one_session_token)) {
     if ($retryCount < $maxRetries) {
         $retryCount++;
         goto cart;
     } else {
-    $err = "Clinte Token";
-    $result = json_encode([
-        'Response' => $err,
-        'Price'=> $minPrice,
-    ]);
-    echo $result;
-    exit;
+        $err = "Clinte Token";
+        $result = json_encode([
+            'Response' => $err,
+            'Price'=> $minPrice,
+        ]);
+        echo $result;
+        exit;
+    }
 }
 }
 $queue_token = find_between($response, 'queueToken&quot;:&quot;', '&quot;');

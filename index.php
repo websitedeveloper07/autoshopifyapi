@@ -409,7 +409,6 @@ if ($found) {
     exit;
 }
 
-// Extract Session Token (SST) - Updated to match new Shopify format
  $x_checkout_one_session_token = find_between($response, 'name="serialized-sessionToken" content="&quot;', '&quot;');
 if (empty($x_checkout_one_session_token)) {
     $x_checkout_one_session_token = find_between($response, 'serializedSessionToken&quot;:&quot;', '&quot;');
@@ -428,56 +427,55 @@ if (empty($x_checkout_one_session_token)) {
         exit;
     }
 }
-}
-$queue_token = find_between($response, 'queueToken&quot;:&quot;', '&quot;');
+ $queue_token = find_between($response, 'queueToken&quot;:&quot;', '&quot;');
 if (empty($queue_token)) {
     if ($retryCount < $maxRetries) {
         $retryCount++;
         goto cart;
     } else {
-    $err = 'Token Empty';
-    $result = json_encode([
-        'Response' => $err,
-        'Price'=> $minPrice,
-    ]);
-    echo $result;
-    exit;
+        $err = 'Token Empty';
+        $result = json_encode([
+            'Response' => $err,
+            'Price'=> $minPrice,
+        ]);
+        echo $result;
+        exit;
+    }
 }
-}
-$currency = find_between($response, '&quot;currencyCode&quot;:&quot;', '&quot;');
-$countrycode = find_between($response, '&quot;countryCode&quot;:&quot;', '&quot;,&quot');
-$stable_id = find_between($response, 'stableId&quot;:&quot;', '&quot;');
+ $currency = find_between($response, '&quot;currencyCode&quot;:&quot;', '&quot;');
+ $countrycode = find_between($response, '&quot;countryCode&quot;:&quot;', '&quot;,&quot');
+ $stable_id = find_between($response, 'stableId&quot;:&quot;', '&quot;');
 if (empty($stable_id)) {
     if ($retryCount < $maxRetries) {
         $retryCount++;
         goto cart;
     } else {
-    $err = 'Id empty';
-    $result = json_encode([
-        'Response' => $err,
-        'Price'=> $minPrice,
-    ]);
-    echo $result;
-    exit;
+        $err = 'Id empty';
+        $result = json_encode([
+            'Response' => $err,
+            'Price'=> $minPrice,
+        ]);
+        echo $result;
+        exit;
+    }
 }
-}
-$paymentMethodIdentifier = find_between($response, 'paymentMethodIdentifier&quot;:&quot;', '&quot;');
+ $paymentMethodIdentifier = find_between($response, 'paymentMethodIdentifier&quot;:&quot;', '&quot;');
 if (empty($paymentMethodIdentifier)) {
     if ($retryCount < $maxRetries) {
         $retryCount++;
         goto cart;
     } else {
-    $err = 'py id empty';
-    $result = json_encode([
-        'Response' => $err,
-        'Price'=> $minPrice,
-    ]);
-    echo $result;
-    exit;
+        $err = 'py id empty';
+        $result = json_encode([
+            'Response' => $err,
+            'Price'=> $minPrice,
+        ]);
+        echo $result;
+        exit;
+    }
 }
-}
-$checkouturl = isset($headers['Location']) ? $headers['Location'] : '';
-$checkoutToken = '';
+ $checkouturl = isset($headers['Location']) ? $headers['Location'] : '';
+ $checkoutToken = '';
 if (preg_match('/\/cn\/([^\/?]+)/', $checkouturl, $matches)) {
     $checkoutToken = $matches[1];
 }
